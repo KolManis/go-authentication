@@ -11,7 +11,7 @@ func main() {
 	port := os.Getenv("PORT")
 
 	if port == "" {
-		port = "0000"
+		port = "8080"
 	}
 
 	router := gin.New()
