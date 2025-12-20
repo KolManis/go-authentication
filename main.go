@@ -1,8 +1,9 @@
 package main
 
 import (
-	routes "go-authentication/routes"
 	"os"
+
+	routes "github.com/go-authentication/routes"
 
 	"github.com/gin-gonic/gin"
 )
