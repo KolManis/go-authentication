@@ -145,6 +145,100 @@ func Login() gin.HandlerFunc {
 	}
 }
 
+// func GetUsers() gin.HandlerFunc {
+// 	return func(c *gin.Context) {
+// 		if err := helper.CheckUserType(c, "ADMIN"); err != nil {
+// 			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+// 			return
+// 		}
+
+// 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+// 		defer cancel()
+
+// 		recordPerPage, err := strconv.Atoi(c.Query("recordPerPage"))
+// 		if err != nil || recordPerPage < 1 {
+// 			recordPerPage = 10
+// 		}
+
+// 		page, err := strconv.Atoi(c.Query("page"))
+// 		if err != nil || page < 1 {
+// 			page = 1
+// 		}
+
+// 		startIndex := (page - 1) * recordPerPage
+
+// 		if userCollection == nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "database connection not established"})
+// 			return
+// 		}
+
+// 		matchStage := bson.D{{"$match", bson.D{}}} // Все документы
+
+// 		groupStage := bson.D{
+// 			{"$group", bson.D{
+// 				{"_id", nil}, // null группировка
+// 				{"total_count", bson.D{{"$sum", 1}}},
+// 				{"data", bson.D{{"$push", "$$ROOT"}}},
+// 			}},
+// 		}
+
+// 		projectStage := bson.D{
+// 			{"$project", bson.D{
+// 				{"_id", 0}, // скрываем _id
+// 				{"total_count", 1},
+// 				{"user_items", bson.D{
+// 					{"$slice", bson.A{"$data", startIndex, recordPerPage}},
+// 				}},
+// 			}},
+// 		}
+
+// 		cursor, err := userCollection.Aggregate(ctx, mongo.Pipeline{
+// 			matchStage, groupStage, projectStage,
+// 		})
+
+// 		if err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{
+// 				"error": "error occurred while listing users: " + err.Error(),
+// 			})
+// 			return
+// 		}
+
+// 		if cursor == nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{
+// 				"error": "database returned empty cursor",
+// 			})
+// 			return
+// 		}
+
+// 		defer cursor.Close(ctx)
+
+// 		var results []bson.M
+// 		if err := cursor.All(ctx, &results); err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{
+// 				"error": "failed to decode users: " + err.Error(),
+// 			})
+// 			return
+// 		}
+
+// 		if len(results) == 0 {
+// 			c.JSON(http.StatusOK, gin.H{
+// 				"total_count": 0,
+// 				"user_items":  []bson.M{},
+// 				"page":        page,
+// 				"per_page":    recordPerPage,
+// 			})
+// 			return
+// 		}
+
+// 		response := results[0]
+// 		response["page"] = page
+// 		response["per_page"] = recordPerPage
+// 		response["total_pages"] = int(math.Ceil(float64(response["total_count"].(int32)) / float64(recordPerPage)))
+
+// 		c.JSON(http.StatusOK, response)
+// 	}
+// }
+
 func GetUsers() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if err := helper.CheckUserType(c, "ADMIN"); err != nil {
@@ -169,13 +263,13 @@ func GetUsers() gin.HandlerFunc {
 		matchStage := bson.D{{"$match", bson.D{{}}}}
 		//groupStage := bson.D{{"$group", bson.D{{"_id", bson.D{{"_id", "null"}}, {"total_count", bson.D{{"$sum", 1}}}, {"data", bson.D{{"$push", "$$ROOT"}}}}}}}
 		groupStage := bson.D{{"$group", bson.D{
-			{"_id", bson.D{{"_id", "null"}}},
+			{"_id", bson.D{{"_id", nil}}},
 			{"total_count", bson.D{{"$sum", 1}}},
 			{"data", bson.D{{"$push", "$$ROOT"}}}}}}
 
 		projectStage := bson.D{
 			{"$project", bson.D{
-				{"$id", 0},
+				{"_id", 0},
 				{"total_count", 1},
 				{"user_items", bson.D{{"$slice", []interface{}{"$data", startIndex, recordPerPage}}}}}}}
 
@@ -183,12 +277,14 @@ func GetUsers() gin.HandlerFunc {
 			matchStage, groupStage, projectStage})
 
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "error occured wgile listing user items"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "error occured wgile listing user items: " + err.Error()})
+			return
 		}
 
 		var allUsers []bson.M
 		if err = result.All(ctx, &allUsers); err != nil {
 			log.Fatal(err)
+			return
 		}
 
 		c.JSON(http.StatusOK, allUsers[0])

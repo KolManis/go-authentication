@@ -23,6 +23,7 @@ func main() {
 		port = "8080"
 	}
 
+	gin.SetMode(gin.DebugMode)
 	router := gin.New()
 	router.Use(gin.Logger())
 
