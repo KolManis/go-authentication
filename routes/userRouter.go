@@ -1,8 +1,8 @@
 package routes
 
 import (
-	controller "go-authentication/controllers"
-	"go-authentication/middleware"
+	controller "github.com/KolManis/go-authentication/controllers"
+	"github.com/KolManis/go-authentication/middleware"
 
 	"github.com/gin-gonic/gin"
 )

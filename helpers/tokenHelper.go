@@ -2,6 +2,7 @@ package helper
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -61,7 +62,36 @@ func GenerateAllTokens(
 	return token, refreshToken, err
 }
 
-func UpdateAllTokens(signedtoken string, signedRefreshToken string, userId string) error   {
+func VaildateToken(signedToken string) (claims *SignedDetails, msg string) {
+	token, err := jwt.ParseWithClaims(
+		signedToken,
+		&SignedDetails{},
+		func(token *jwt.Token) (interface{}, error) {
+			return []byte(SECRET_KEY), nil
+		},
+	)
+	if err != nil {
+		msg = err.Error()
+		return
+	}
+
+	claims, ok := token.Claims.(*SignedDetails)
+	if !ok {
+		msg = fmt.Sprintf("the token is invalid")
+		msg = err.Error()
+		return
+	}
+
+	if claims.ExpiresAt < time.Now().Local().Unix() {
+		msg = fmt.Sprintf("the token is expired")
+		msg = err.Error()
+		return
+	}
+
+	return claims, msg
+}
+
+func UpdateAllTokens(signedtoken string, signedRefreshToken string, userId string) error {
 	var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 	defer cancel()
 
@@ -74,9 +104,9 @@ func UpdateAllTokens(signedtoken string, signedRefreshToken string, userId strin
 	updateObj = append(updateObj, bson.E{"update_at", Update_at})
 
 	// primitive.D{
-    // {"token", "eyJhbGciOiJ..."},
-    // {"refresh_token", "eyJhbGciOiJ..."},
-    // {"update_at", "2024-01-15T10:30:00Z"},
+	// {"token", "eyJhbGciOiJ..."},
+	// {"refresh_token", "eyJhbGciOiJ..."},
+	// {"update_at", "2024-01-15T10:30:00Z"},
 
 	upsert := true
 	filter := bson.M{"user_id": userId}
@@ -84,20 +114,48 @@ func UpdateAllTokens(signedtoken string, signedRefreshToken string, userId strin
 		Upsert: &upsert,
 	}
 
-	
 	_, err := userCollection.UpdateOne(
-		ctx, 
+		ctx,
 		filter,
 		bson.D{
-			{"$set", updateObj}
+			{"$set", updateObj},
 		},
-		&opt
+		&opt,
 	)
 
 	if err != nil {
 		log.Panic(err)
-		return
+		return err
 	}
 
-	return
+	return nil
 }
+
+// func UpdateAllTokens(signedToken string, signedRefreshToken string, userId string) error {
+// 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+// 	defer cancel()
+
+// 	update := bson.D{
+// 		{"$set", bson.D{
+// 			{"token", signedToken},
+// 			{"refresh_token", signedRefreshToken},
+// 			{"updated_at", time.Now()},
+// 		}},
+// 	}
+
+// 	filter := bson.M{"user_id": userId}
+
+// 	// Опции (без upsert - пользователь должен существовать)
+// 	opt := options.Update().SetUpsert(false)
+
+// 	result, err := userCollection.UpdateOne(ctx, filter, update, opt)
+// 	if err != nil {
+// 		return fmt.Errorf("failed to update tokens: %v", err)
+// 	}
+
+// 	if result.MatchedCount == 0 {
+// 		return errors.New("user not found")
+// 	}
+
+// 	return nil
+// }

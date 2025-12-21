@@ -3,15 +3,12 @@ package controllers
 import (
 	"context"
 	"fmt"
-	helper "go-authentication/helpers"
-	"go-authentication/models"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
-	"go-authentication/database"
-	"go-authentication/models"
-
+	"github.com/KolManis/go-authentication/database"
 	helper "github.com/KolManis/go-authentication/helpers"
 	"github.com/KolManis/go-authentication/models"
 	"github.com/gin-gonic/gin"
@@ -45,7 +42,7 @@ func VerifyPassword(userPassword string, providedPassword string) (passwordIsVal
 
 }
 
-func Singup() gin.HandlerFunc {
+func Signup() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
@@ -86,9 +83,9 @@ func Singup() gin.HandlerFunc {
 
 		user.Created_at, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 		user.Updated_at, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		user.ID = primitive.NewObjectID()
-		user.User_id = user.ID.Hex()
-		token, refreshToken, _ := helper.GenerateAllTokens(*user.Email, *user.First_name, user.Last_name, *user.User_type, *&user.User_id)
+		user.Id = primitive.NewObjectID()
+		user.User_id = user.Id.Hex()
+		token, refreshToken, _ := helper.GenerateAllTokens(*user.Email, *user.First_name, *user.Last_name, *user.User_type, *&user.User_id)
 		user.Token = &token
 		user.Refresh_token = &refreshToken
 
@@ -148,7 +145,54 @@ func Login() gin.HandlerFunc {
 	}
 }
 
-func GetUsers()
+func GetUsers() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if err := helper.CheckUserType(c, "ADMIN"); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		var ctx, cancle = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancle()
+
+		var user []models.User //db struct
+
+		recordPerPage, err := strconv.Atoi(c.Query("recordPerPage"))
+		if err != nil || recordPerPage < 1 {
+			recordPerPage = 10
+		}
+		page, err1 := strconv.Atoi(c.Query("page"))
+		if err1 != nil || page < 1 {
+			page = 1
+		}
+
+		startIndex := (page - 1) * recordPerPage
+		startIndex, err = strconv.Atoi(c.Query("startIndex"))
+
+		matchStage := bson.D{{"$match", bson.D{{}}}}
+		//groupStage := bson.D{{"$group", bson.D{{"_id", bson.D{{"_id", "null"}}, {"total_count", bson.D{{"$sum", 1}}}, {"data", bson.D{{"$push", "$$ROOT"}}}}}}}
+		groupStage := bson.D{{"$group", bson.D{
+			{"_id", bson.D{{"_id", "null"}}},
+			{"total_count", bson.D{{"$sum", 1}}}, 
+			{"data", bson.D{{"$push", "$$ROOT"}}},
+		}}}
+
+		projectStage := bson.D{
+			{"$project", bson.D{
+				{"$id", 0},
+				{"total_count", 1},
+				{"user_items", bson.D{{"$slice", []interface{}{"$data", startIndex, recordPerPage}}}},
+			}},
+		}
+
+		userCollection.Aggregate(ctx, mongo.Pipeline{
+			matchStage, groupStage, projectStage
+		})
+		if err != nill {
+			
+		}
+		c.JSON(http.StatusOK, user)
+	}
+}
 
 func GetUser() gin.HandlerFunc {
 	return func(c *gin.Context) {

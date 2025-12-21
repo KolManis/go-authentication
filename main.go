@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	routes "github.com/go-authentication/routes"
+	routes "github.com/KolManis/go-authentication/routes"
 
 	"github.com/gin-gonic/gin"
 )
