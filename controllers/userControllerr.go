@@ -23,7 +23,7 @@ var userCollection *mongo.Collection = database.OpenCollection(database.Client, 
 var vaildate = validator.New()
 
 func HashPassword(password string) string {
-	bcrypt.GenerateFromPassword([]byte(password), 14)
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -33,13 +33,13 @@ func HashPassword(password string) string {
 func VerifyPassword(userPassword string, providedPassword string) (passwordIsValid bool, msg string) {
 	err := bcrypt.CompareHashAndPassword([]byte(providedPassword), []byte(userPassword))
 	check := true
-	msg := ""
+	msg = ""
 
 	if err != nil {
 		msg = fmt.Sprint("email of password is incorrect")
 		check = false
 	}
-
+	return check, msg
 }
 
 func Signup() gin.HandlerFunc {
@@ -154,8 +154,6 @@ func GetUsers() gin.HandlerFunc {
 		var ctx, cancle = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancle()
 
-		var user []models.User //db struct
-
 		recordPerPage, err := strconv.Atoi(c.Query("recordPerPage"))
 		if err != nil || recordPerPage < 1 {
 			recordPerPage = 10
@@ -172,25 +170,28 @@ func GetUsers() gin.HandlerFunc {
 		//groupStage := bson.D{{"$group", bson.D{{"_id", bson.D{{"_id", "null"}}, {"total_count", bson.D{{"$sum", 1}}}, {"data", bson.D{{"$push", "$$ROOT"}}}}}}}
 		groupStage := bson.D{{"$group", bson.D{
 			{"_id", bson.D{{"_id", "null"}}},
-			{"total_count", bson.D{{"$sum", 1}}}, 
-			{"data", bson.D{{"$push", "$$ROOT"}}},
-		}}}
+			{"total_count", bson.D{{"$sum", 1}}},
+			{"data", bson.D{{"$push", "$$ROOT"}}}}}}
 
 		projectStage := bson.D{
 			{"$project", bson.D{
 				{"$id", 0},
 				{"total_count", 1},
-				{"user_items", bson.D{{"$slice", []interface{}{"$data", startIndex, recordPerPage}}}},
-			}},
+				{"user_items", bson.D{{"$slice", []interface{}{"$data", startIndex, recordPerPage}}}}}}}
+
+		result, err := userCollection.Aggregate(ctx, mongo.Pipeline{
+			matchStage, groupStage, projectStage})
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "error occured wgile listing user items"})
 		}
 
-		userCollection.Aggregate(ctx, mongo.Pipeline{
-			matchStage, groupStage, projectStage
-		})
-		if err != nill {
-			
+		var allUsers []bson.M
+		if err = result.All(ctx, &allUsers); err != nil {
+			log.Fatal(err)
 		}
-		c.JSON(http.StatusOK, user)
+
+		c.JSON(http.StatusOK, allUsers[0])
 	}
 }
 
